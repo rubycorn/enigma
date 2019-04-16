@@ -79,8 +79,13 @@ class Plugboard
     @replacements = replacements.split.map{ |r| r.chars }.to_h
   end
 
-  def pass(char)
-    @replacements[char] || char
+  def pass_to(direction, char)
+    case direction
+    when :left
+      @replacements[char]
+    when :right
+      @replacements.key(char)
+    end || char
   end
 end
 
@@ -164,7 +169,7 @@ class Enigma
   private
 
   def encrypt(input)
-    ch = @stator.pass_to(:left, @plugboard.pass(input))
+    ch = @stator.pass_to(:left, @plugboard.pass_to(:left, input))
 
     ch = @right.pass_to(:left, ch)
     ch = @middle.pass_to(:left, ch)
@@ -176,7 +181,7 @@ class Enigma
     ch = @middle.pass_to(:right, ch)
     ch = @right.pass_to(:right, ch)
 
-    return @plugboard.pass(@stator.pass_to(:right, ch))
+    return @plugboard.pass_to(:right, @stator.pass_to(:right, ch))
   end
 
   def rotate_rotors
