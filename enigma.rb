@@ -1,5 +1,5 @@
 # Enigma Process
-#      1. Convert input letter to number - validate!
+#      1. Get input letter
 #      2. Rotate wheels
 #      3. Pass through plugboard
 #      4. Pass through right-hand wheel
@@ -37,7 +37,6 @@ class Terminal
 end
 
 class Reflector < Terminal
-
   def pass(char)
     @wiring[char]
   end
@@ -54,7 +53,6 @@ class Reflector < Terminal
 end
 
 class Stator < Terminal
-
   def pass_to(direction, char)
     case direction
     when :left
@@ -225,5 +223,5 @@ class Enigma
   end
 end
 
-machine = Enigma.new
+machine = Enigma.new(plugboard: 'MN')
 machine.run
