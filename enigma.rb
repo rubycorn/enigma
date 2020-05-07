@@ -14,11 +14,11 @@
 
 require 'io/console'
 
+# String monkey patch
 class String
   # convert letter to number
   def to_n
-    return nil unless self.length == 1
-    ('A'..'Z').to_a.index(self.upcase)
+    length == 1 ? ('A'..'Z').to_a.index(upcase) : nil
   end
 
   # colorization
@@ -39,20 +39,25 @@ class String
   end
 end
 
+# Integer monkey patch
 class Integer
   # convert number to letter
   def to_l
-    return self if self > 25 || self < 0
-    ('A'..'Z').to_a[self]
+    self > 25 || negative? ? self : ('A'..'Z').to_a[self]
   end
 end
 
+# Base class for rotors and stators
 class Terminal
   def initialize(type)
-    @wiring = Enigma.alphabet.each_with_index.map{ |letter, ind| [letter, parameters[type][ind]] }.to_h
+    @wiring = Enigma.alphabet.each_with_index.map do |letter, ind|
+      [letter, parameters[type][ind]]
+    end.to_h
   end
 end
 
+# Reflector reverse the signal
+# and back it to rotors
 class Reflector < Terminal
   def pass(char)
     @wiring[char]
@@ -69,6 +74,8 @@ class Reflector < Terminal
   end
 end
 
+# Fixed connection wheel
+# before main rotors set
 class Stator < Terminal
   def pass_to(direction, char)
     case direction
@@ -89,6 +96,8 @@ class Stator < Terminal
   end
 end
 
+# Additional cypher protection
+# replaces two pairs of two letters each
 class Plugboard
   def initialize(replacements)
     @replacements = {}
@@ -103,13 +112,17 @@ class Plugboard
   end
 end
 
+# Each key press Rotors generate new
+# simple substitution cypher
 class Rotor
   attr_reader :position, :turnover
 
   def initialize(position, type)
     @position = position
     @turnover = parameters[type][1]
-    @wiring = Enigma.alphabet.each_with_index.map{ |letter, ind| [letter, parameters[type][0][ind]] }.to_h
+    @wiring = Enigma.alphabet.each_with_index.map do |letter, ind|
+      [letter, parameters[type][0][ind]]
+    end.to_h
   end
 
   def rotate
@@ -131,21 +144,25 @@ class Rotor
 
   def parameters
     {
-      'I' => ['EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q'],
-      'II' => ['AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E'],
-      'III' => ['BDFHJLCPRTXVZNYEIWGAKMUSQO', 'V'],
-      'IV' => ['ESOVPZJAYQUIRHXLNFTGKDCMWB', 'J'],
-      'V' => ['VZBRGITYUPSDNHLXAWMJQOFECK', 'Z']
+      'I' => %w[EKMFLGDQVZNTOWYHXUSPAIBRCJ Q],
+      'II' => %w[AJDKSIRUXBLHWTMCQGZNPYFVOE E],
+      'III' => %w[BDFHJLCPRTXVZNYEIWGAKMUSQO V],
+      'IV' => %w[ESOVPZJAYQUIRHXLNFTGKDCMWB J],
+      'V' => %w[VZBRGITYUPSDNHLXAWMJQOFECK Z]
     }
   end
 end
 
+# Assembled machine
 class Enigma
   def self.alphabet
     ('A'..'Z').to_a
   end
 
   def initialize(opts = {})
+    @text = []
+    @cypher = []
+
     @groupping = opts[:groupping] || 4
     @length = opts[:length] || 40
 
@@ -155,17 +172,7 @@ class Enigma
       right: { position: 'A', type: 'III' }
     }
 
-    @plugboard = Plugboard.new(opts[:plugboard] ||= '')
-    @stator = Stator.new(opts[:stator] || :army)
-
-    @right = Rotor.new(opts[:rotors][:right][:position], opts[:rotors][:right][:type])
-    @middle = Rotor.new(opts[:rotors][:middle][:position], opts[:rotors][:middle][:type])
-    @left = Rotor.new(opts[:rotors][:left][:position], opts[:rotors][:left][:type])
-
-    @reflector = Reflector.new(opts[:reflector] || :b)
-
-    @text = []
-    @cypher = []
+    prepare_chain(opts)
   end
 
   def run
@@ -188,6 +195,18 @@ class Enigma
 
   private
 
+  def prepare_chain(opts)
+    @plugboard = Plugboard.new(opts[:plugboard] ||= '')
+    @stator = Stator.new(opts[:stator] || :army)
+
+    rotors = opts[:rotors]
+    @right = Rotor.new(rotors[:right][:position], rotors[:right][:type])
+    @middle = Rotor.new(rotors[:middle][:position], rotors[:middle][:type])
+    @left = Rotor.new(rotors[:left][:position], rotors[:left][:type])
+
+    @reflector = Reflector.new(opts[:reflector] || :b)
+  end
+
   def encrypt(input)
     ch = @stator.pass_to(:left, @plugboard.pass(input))
 
@@ -201,7 +220,7 @@ class Enigma
     ch = @middle.pass_to(:right, ch)
     ch = @right.pass_to(:right, ch)
 
-    return @plugboard.pass(@stator.pass_to(:right, ch))
+    @plugboard.pass(@stator.pass_to(:right, ch))
   end
 
   def rotate_rotors
@@ -209,35 +228,33 @@ class Enigma
       @left.rotate
       @middle.rotate
     end
-    if @right.position == @right.turnover
-      @middle.rotate
-    end
+    @middle.rotate if @right.position == @right.turnover
     @right.rotate
   end
 
   def render_interface
-    system(Gem.win_platform? ? 'cls': 'clear')
+    system(Gem.win_platform? ? 'cls' : 'clear')
 
     puts "+++ ENIGMA M3 +++\nPress Ctrl+X for Exit.\n\n"
-    puts "-------------"
+    puts '-------------'
     puts "| #{@left.position.red} | #{@middle.position.red} | #{@right.position.red} |"
-    puts "-------------"
+    puts '-------------'
     render_source
     render_cypher
   end
 
   def render_source
-    puts ('=' * (@length + (@length / @groupping))) + "\n"
+    puts('=' * (@length + (@length / @groupping)) + "\n")
     @text.each_with_index do |ch, ind|
       print ch.green
       print ' ' if ((ind + 1) % @groupping).zero?
       puts nil if  ((ind + 1) % @length).zero?
     end
-    puts ("\n")
+    puts "\n"
   end
 
   def render_cypher
-    puts ('=' * (@length + (@length / @groupping))) + "\n"
+    puts('=' * (@length + (@length / @groupping)) + "\n")
     @cypher.each_with_index do |ch, ind|
       print ch.yellow
       print ' ' if ((ind + 1) % @groupping).zero?
@@ -247,12 +264,12 @@ class Enigma
   end
 end
 
-machine = Enigma.new({
+machine = Enigma.new(
   rotors: {
     left: { position: 'A', type: 'I' },
     middle: { position: 'A', type: 'II' },
     right: { position: 'A', type: 'III' }
   },
   plugboard: 'EF MN'
-})
+)
 machine.run
